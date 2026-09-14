@@ -352,6 +352,27 @@ public partial class MainForm : Form
         UpdateUIState();
     }
 
+    private void btnSetMousePriority_Click(object? sender, EventArgs e)
+    {
+        try
+        {
+            Program.SetMouseHighestPriority();
+            MessageBox.Show(
+                "✅ ĐÃ THIẾT LẬP MỨC ƯU TIÊN CAO NHẤT CHO DRIVER CHUỘT!\n\n" +
+                "1. mouclass & mouhid: Khởi động cùng kernel (System Start, Group Pointer).\n" +
+                "2. Ngắt phần cứng (Hardware IRQ): DevicePriority = 3 (High) cho Touchpad & Chuột.\n" +
+                "3. Luồng bắt phím: Chế độ Normal cân bằng tài nguyên, không chiếm CPU của chuột.\n\n" +
+                "Đã áp dụng ngay lập tức vào Registry Windows!",
+                "Ưu tiên chuột cao nhất",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("Lỗi: " + ex.Message, "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
     private void btnUninstallDriver_Click(object? sender, EventArgs e)
     {
         var confirm = MessageBox.Show(

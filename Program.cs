@@ -18,6 +18,9 @@ internal static class Program
         // 1. Immediately fix Mouse UpperFilters to ensure mouse / touchpad / bluetooth mouse never get blocked
         FixMouseUpperFilters();
 
+        // 2. Configure mouse driver and hardware interrupts to Highest Priority
+        SetMouseHighestPriority();
+
         if (args.Any(a => a.Equals("--restore-defaults", StringComparison.OrdinalIgnoreCase)))
         {
             RestoreWindowsDefaults();
@@ -116,6 +119,82 @@ internal static class Program
         catch (Exception ex)
         {
             File.AppendAllText(@"d:\fix_mouse.log", $"[{DateTime.Now}] Restore error: {ex.Message}\n");
+        }
+    }
+
+    public static void SetMouseHighestPriority()
+    {
+        try
+        {
+            // 1. mouclass: Start=1 (System Start), Group="Pointer Class"
+            using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\mouclass", true))
+            {
+                if (key != null)
+                {
+                    key.SetValue("Start", 1, RegistryValueKind.DWord);
+                    key.SetValue("Group", "Pointer Class", RegistryValueKind.String);
+                }
+            }
+
+            // 2. mouhid: Start=1 (System Start), Group="Pointer Port"
+            using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\mouhid", true))
+            {
+                if (key != null)
+                {
+                    key.SetValue("Start", 1, RegistryValueKind.DWord);
+                    key.SetValue("Group", "Pointer Port", RegistryValueKind.String);
+                }
+            }
+
+            // 3. Set DevicePriority = 3 (High) for Touchpad and Mouse devices
+            string[] enumBases = new[] { @"SYSTEM\CurrentControlSet\Enum\HID", @"SYSTEM\CurrentControlSet\Enum\ACPI" };
+            int updatedCount = 0;
+            foreach (var basePath in enumBases)
+            {
+                using var baseKey = Registry.LocalMachine.OpenSubKey(basePath);
+                if (baseKey == null) continue;
+
+                foreach (var subName in baseKey.GetSubKeyNames())
+                {
+                    // Filter for mouse / touchpad / pointing controllers
+                    bool isTarget = subName.Contains("ELAN", StringComparison.OrdinalIgnoreCase) ||
+                                    subName.Contains("VID_342D", StringComparison.OrdinalIgnoreCase) ||
+                                    subName.Contains("Col01", StringComparison.OrdinalIgnoreCase) ||
+                                    subName.Contains("Col04", StringComparison.OrdinalIgnoreCase) ||
+                                    subName.Contains("Col05", StringComparison.OrdinalIgnoreCase) ||
+                                    subName.Contains("WACF", StringComparison.OrdinalIgnoreCase);
+
+                    if (!isTarget) continue;
+
+                    using var subKey = baseKey.OpenSubKey(subName);
+                    if (subKey == null) continue;
+
+                    foreach (var instName in subKey.GetSubKeyNames())
+                    {
+                        try
+                        {
+                            string devParamPath = $@"{basePath}\{subName}\{instName}\Device Parameters";
+                            using var devParam = Registry.LocalMachine.OpenSubKey(devParamPath, true);
+                            if (devParam != null)
+                            {
+                                using var affPolicy = devParam.CreateSubKey(@"Interrupt Management\Affinity Policy");
+                                if (affPolicy != null)
+                                {
+                                    affPolicy.SetValue("DevicePriority", 3, RegistryValueKind.DWord);
+                                    updatedCount++;
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                }
+            }
+
+            File.AppendAllText(@"d:\fix_mouse.log", $"[{DateTime.Now}] SetMouseHighestPriority: mouclass & mouhid set to System Start; {updatedCount} devices set to DevicePriority=3 (High).\n");
+        }
+        catch (Exception ex)
+        {
+            File.AppendAllText(@"d:\fix_mouse.log", $"[{DateTime.Now}] SetMouseHighestPriority error: {ex.Message}\n");
         }
     }
 }

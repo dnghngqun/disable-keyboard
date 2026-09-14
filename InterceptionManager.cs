@@ -136,7 +136,7 @@ public class InterceptionManager : IDisposable
         {
             IsBackground = true,
             Name = "InterceptionWorker",
-            Priority = ThreadPriority.Highest
+            Priority = ThreadPriority.Normal
         };
         _workerThread.Start();
         Log($"Worker thread started. LaptopDeviceId={_laptopDeviceId}, IsLaptopDisabled={_isLaptopDisabled}");

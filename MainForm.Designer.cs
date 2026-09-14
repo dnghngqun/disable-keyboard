@@ -27,6 +27,7 @@ partial class MainForm
     private System.Windows.Forms.CheckBox chkHotkey;
     private System.Windows.Forms.Label lblHotkeyStatus;
     private System.Windows.Forms.Button btnUninstallDriver;
+    private System.Windows.Forms.Button btnSetMousePriority;
 
     private System.Windows.Forms.Button btnMinimizeToTray;
     private System.Windows.Forms.NotifyIcon notifyIcon;
@@ -67,6 +68,7 @@ partial class MainForm
         this.chkHotkey = new System.Windows.Forms.CheckBox();
         this.lblHotkeyStatus = new System.Windows.Forms.Label();
         this.btnUninstallDriver = new System.Windows.Forms.Button();
+        this.btnSetMousePriority = new System.Windows.Forms.Button();
 
         this.btnMinimizeToTray = new System.Windows.Forms.Button();
         this.notifyIcon = new System.Windows.Forms.NotifyIcon(this.components);
@@ -239,6 +241,7 @@ partial class MainForm
         this.pnlNormalControls.Controls.Add(this.chkHotkey);
         this.pnlNormalControls.Controls.Add(this.lblHotkeyStatus);
         this.pnlNormalControls.Controls.Add(this.btnUninstallDriver);
+        this.pnlNormalControls.Controls.Add(this.btnSetMousePriority);
         this.pnlNormalControls.Location = new System.Drawing.Point(20, 225);
         this.pnlNormalControls.Name = "pnlNormalControls";
         this.pnlNormalControls.Size = new System.Drawing.Size(644, 290);
@@ -357,6 +360,22 @@ partial class MainForm
         this.btnUninstallDriver.Text = "🗑 Gỡ cài đặt Driver Interception";
         this.btnUninstallDriver.UseVisualStyleBackColor = false;
         this.btnUninstallDriver.Click += new System.EventHandler(this.btnUninstallDriver_Click);
+        // 
+        // btnSetMousePriority
+        // 
+        this.btnSetMousePriority.BackColor = System.Drawing.Color.FromArgb(240, 253, 244);
+        this.btnSetMousePriority.Cursor = System.Windows.Forms.Cursors.Hand;
+        this.btnSetMousePriority.FlatAppearance.BorderColor = System.Drawing.Color.FromArgb(187, 247, 208);
+        this.btnSetMousePriority.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+        this.btnSetMousePriority.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
+        this.btnSetMousePriority.ForeColor = System.Drawing.Color.FromArgb(21, 128, 61);
+        this.btnSetMousePriority.Location = new System.Drawing.Point(20, 185);
+        this.btnSetMousePriority.Name = "btnSetMousePriority";
+        this.btnSetMousePriority.Size = new System.Drawing.Size(320, 34);
+        this.btnSetMousePriority.TabIndex = 6;
+        this.btnSetMousePriority.Text = "⚡ Ưu Tiên Driver Chuột Cao Nhất (High Priority)";
+        this.btnSetMousePriority.UseVisualStyleBackColor = false;
+        this.btnSetMousePriority.Click += new System.EventHandler(this.btnSetMousePriority_Click);
 
         // 
         // btnMinimizeToTray
