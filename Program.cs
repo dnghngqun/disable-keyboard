@@ -126,29 +126,28 @@ internal static class Program
     {
         try
         {
-            // 1. mouclass: Start=1 (System Start), Group="Pointer Class"
+            // 1. Ensure mouclass & mouhid run at default Start=3 without non-standard group
             using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\mouclass", true))
             {
                 if (key != null)
                 {
-                    key.SetValue("Start", 1, RegistryValueKind.DWord);
-                    key.SetValue("Group", "Pointer Class", RegistryValueKind.String);
+                    key.SetValue("Start", 3, RegistryValueKind.DWord);
+                    try { key.DeleteValue("Group"); } catch { }
                 }
             }
 
-            // 2. mouhid: Start=1 (System Start), Group="Pointer Port"
             using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\mouhid", true))
             {
                 if (key != null)
                 {
-                    key.SetValue("Start", 1, RegistryValueKind.DWord);
-                    key.SetValue("Group", "Pointer Port", RegistryValueKind.String);
+                    key.SetValue("Start", 3, RegistryValueKind.DWord);
+                    try { key.DeleteValue("Group"); } catch { }
                 }
             }
 
-            // 3. Set DevicePriority = 3 (High) for Touchpad and Mouse devices
+            // 2. Clean up any leftover DevicePriority to protect keyboard interrupt handling
             string[] enumBases = new[] { @"SYSTEM\CurrentControlSet\Enum\HID", @"SYSTEM\CurrentControlSet\Enum\ACPI" };
-            int updatedCount = 0;
+            int cleanedCount = 0;
             foreach (var basePath in enumBases)
             {
                 using var baseKey = Registry.LocalMachine.OpenSubKey(basePath);
@@ -156,16 +155,6 @@ internal static class Program
 
                 foreach (var subName in baseKey.GetSubKeyNames())
                 {
-                    // Filter for mouse / touchpad / pointing controllers
-                    bool isTarget = subName.Contains("ELAN", StringComparison.OrdinalIgnoreCase) ||
-                                    subName.Contains("VID_342D", StringComparison.OrdinalIgnoreCase) ||
-                                    subName.Contains("Col01", StringComparison.OrdinalIgnoreCase) ||
-                                    subName.Contains("Col04", StringComparison.OrdinalIgnoreCase) ||
-                                    subName.Contains("Col05", StringComparison.OrdinalIgnoreCase) ||
-                                    subName.Contains("WACF", StringComparison.OrdinalIgnoreCase);
-
-                    if (!isTarget) continue;
-
                     using var subKey = baseKey.OpenSubKey(subName);
                     if (subKey == null) continue;
 
@@ -173,16 +162,12 @@ internal static class Program
                     {
                         try
                         {
-                            string devParamPath = $@"{basePath}\{subName}\{instName}\Device Parameters";
-                            using var devParam = Registry.LocalMachine.OpenSubKey(devParamPath, true);
-                            if (devParam != null)
+                            string affPath = $@"{basePath}\{subName}\{instName}\Device Parameters\Interrupt Management\Affinity Policy";
+                            using var affKey = Registry.LocalMachine.OpenSubKey(affPath, true);
+                            if (affKey != null)
                             {
-                                using var affPolicy = devParam.CreateSubKey(@"Interrupt Management\Affinity Policy");
-                                if (affPolicy != null)
-                                {
-                                    affPolicy.SetValue("DevicePriority", 3, RegistryValueKind.DWord);
-                                    updatedCount++;
-                                }
+                                affKey.DeleteValue("DevicePriority", false);
+                                cleanedCount++;
                             }
                         }
                         catch { }
@@ -190,7 +175,7 @@ internal static class Program
                 }
             }
 
-            File.AppendAllText(@"d:\fix_mouse.log", $"[{DateTime.Now}] SetMouseHighestPriority: mouclass & mouhid set to System Start; {updatedCount} devices set to DevicePriority=3 (High).\n");
+            File.AppendAllText(@"d:\fix_mouse.log", $"[{DateTime.Now}] SetMouseHighestPriority: mouclass & mouhid normalized; cleaned {cleanedCount} DevicePriority keys.\n");
         }
         catch (Exception ex)
         {

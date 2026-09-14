@@ -58,6 +58,7 @@ public class InterceptionManager : IDisposable
 
     private int _laptopDeviceId = -1;
     private ConfigData _config = new();
+    private Predicate? _filterPredicate;
 
     public event Action<bool>? StatusChanged;
     public event Action<int, string>? DeviceIdentified;
@@ -125,11 +126,11 @@ public class InterceptionManager : IDisposable
             return false;
         }
 
-        // Set filter to intercept all keyboard events
-        InputInterceptor.SetFilter(_context, InputInterceptor.IsKeyboard, KeyboardFilter.All);
-
         // Auto-detect laptop keyboard if not already set
         AutoDetectLaptopDevice();
+
+        // Apply dynamic filter (only filter laptop keyboard if currently disabled)
+        UpdateFilter();
 
         _isRunning = true;
         _workerThread = new Thread(WorkerLoop)
@@ -181,6 +182,7 @@ public class InterceptionManager : IDisposable
     {
         _isLaptopDisabled = disabled;
         Log($"SetLaptopKeyboardDisabled({disabled}) applied for Device #{_laptopDeviceId}");
+        UpdateFilter();
         StatusChanged?.Invoke(_isLaptopDisabled);
     }
 
@@ -195,18 +197,21 @@ public class InterceptionManager : IDisposable
         _config.LaptopDeviceId = deviceId;
         SaveConfig();
         Log($"LaptopDeviceId explicitly updated to: {deviceId}");
+        UpdateFilter();
     }
 
     public void StartIdentifyingDevice()
     {
         _isIdentifying = true;
         Log("Keyboard identification mode started.");
+        UpdateFilter();
     }
 
     public void CancelIdentifyingDevice()
     {
         _isIdentifying = false;
         Log("Keyboard identification mode cancelled.");
+        UpdateFilter();
     }
 
     public List<KeyboardDeviceItem> GetKeyboardDevices()
@@ -301,6 +306,45 @@ public class InterceptionManager : IDisposable
         SaveConfig();
     }
 
+    public void UpdateFilter()
+    {
+        if (_context == IntPtr.Zero) return;
+
+        try
+        {
+            if (_isIdentifying)
+            {
+                // In identification mode, capture KeyDown from all keyboards so we can see which device was pressed
+                _filterPredicate = InputInterceptor.IsKeyboard;
+                InputInterceptor.SetFilter(_context, _filterPredicate, KeyboardFilter.KeyDown);
+                Log("Filter updated: Identifying mode (All keyboards KeyDown)");
+            }
+            else if (_isLaptopDisabled && _laptopDeviceId > 0)
+            {
+                // First reset all keyboards to None so external keyboards pass natively through Windows
+                InputInterceptor.SetFilter(_context, InputInterceptor.IsKeyboard, KeyboardFilter.None);
+
+                // Then set filter ONLY for the laptop keyboard device
+                int targetDev = _laptopDeviceId;
+                _filterPredicate = dev => dev == targetDev;
+                InputInterceptor.SetFilter(_context, _filterPredicate, KeyboardFilter.All);
+                Log($"Filter updated: Intercepting ONLY Laptop Device #{_laptopDeviceId}. External keyboards pass natively.");
+            }
+            else
+            {
+                // Laptop keyboard is enabled: DO NOT INTERCEPT ANY KEYBOARD!
+                // All keyboards pass natively through the kernel driver with 0 latency and 0 modifier interference
+                _filterPredicate = InputInterceptor.IsKeyboard;
+                InputInterceptor.SetFilter(_context, _filterPredicate, KeyboardFilter.None);
+                Log("Filter updated: Inactive (All keyboards pass natively, Filter = None)");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"UpdateFilter error: {ex.Message}");
+        }
+    }
+
     private void WorkerLoop()
     {
         while (_isRunning && _context != IntPtr.Zero)
@@ -324,6 +368,8 @@ public class InterceptionManager : IDisposable
                     string devName = GetDeviceName(device);
                     Log($"Key pressed during identification: Device #{device} ({devName})");
                     DeviceIdentified?.Invoke(device, devName);
+                    UpdateFilter();
+                    continue;
                 }
 
                 // If this is the laptop keyboard and it is marked disabled: DROP IT!
@@ -333,7 +379,7 @@ public class InterceptionManager : IDisposable
                     continue;
                 }
 
-                // Pass the keystroke through immediately
+                // Fallback: If any other keystroke arrived, pass it through immediately
                 InputInterceptor.Send(_context, device, ref stroke, 1);
             }
         }
@@ -398,7 +444,9 @@ public class InterceptionManager : IDisposable
 
         int successfulKeyboards = 0;
 
-        for (int i = 0; i < 20; i++)
+        // Only open keyboard devices (interception00 to interception09)
+        // Never touch mouse devices (interception10 to interception19)
+        for (int i = 0; i < 10; i++)
         {
             string devName = $@"\\.\interception{i:D2}";
             IntPtr hFile = CreateFile(devName, GENERIC_READ, 0, IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
